@@ -52,10 +52,10 @@ export default async function testRoutes(app: FastifyInstance): Promise<void> {
 
       // Insert the test record
       const { rows: testRows } = await client.query<{ id: string }>(
-        `INSERT INTO tests (user_id, question_ids, status, created_at)
-         VALUES ($1, $2, 'in_progress', NOW())
+        `INSERT INTO tests (user_id, question_ids, total_questions, status, created_at)
+         VALUES ($1, $2, $3, 'in_progress', NOW())
          RETURNING id`,
-        [user_id, JSON.stringify(questionIds)],
+        [user_id, JSON.stringify(questionIds), questions.length],
       );
 
       const test_id = testRows[0].id;
@@ -108,25 +108,25 @@ export default async function testRoutes(app: FastifyInstance): Promise<void> {
       const questionIds = answers.map((a) => a.question_id);
       const { rows: correctRows } = await client.query<{
         id: string;
-        correct_answer: number;
+        correct_option: string;
         explanation: string;
         text: string;
       }>(
-        `SELECT id, correct_answer, explanation, text
+        `SELECT id, correct_option, explanation, text
          FROM questions
          WHERE id = ANY($1)`,
         [questionIds],
       );
 
       const correctMap = new Map(
-        correctRows.map((r) => [r.id, { correct_answer: r.correct_answer, explanation: r.explanation, text: r.text }]),
+        correctRows.map((r) => [r.id, { correct_option: r.correct_option, explanation: r.explanation, text: r.text }]),
       );
 
       let score = 0;
       const wrongQuestions: {
         question_id: string;
         user_answer: number;
-        correct_answer: number;
+        correct_answer: string;
         explanation: string;
       }[] = [];
 
@@ -134,25 +134,25 @@ export default async function testRoutes(app: FastifyInstance): Promise<void> {
         const correct = correctMap.get(answer.question_id);
         if (!correct) continue;
 
-        if (answer.selected_option === correct.correct_answer) {
+        if (String(answer.selected_option) === correct.correct_option) {
           score++;
         } else {
           wrongQuestions.push({
             question_id: answer.question_id,
             user_answer: answer.selected_option,
-            correct_answer: correct.correct_answer,
-            explanation: correct.explanation,
+            correct_answer: correct.correct_option,
+            explanation: correct.explanation ?? "",
           });
 
           // Insert into wrong_book
           await client.query(
-            `INSERT INTO wrong_book (user_id, question_id, user_answer, correct_answer, created_at)
-             VALUES ($1, $2, $3, $4, NOW())
-             ON CONFLICT (user_id, question_id) DO UPDATE SET
+            `INSERT INTO wrong_book (user_id, question_id, test_id, user_answer, correct_answer, created_at)
+             VALUES ($1, $2, $3, $4, $5, NOW())
+             ON CONFLICT (user_id, question_id, test_id) DO UPDATE SET
                user_answer = EXCLUDED.user_answer,
                correct_answer = EXCLUDED.correct_answer,
-               created_at = NOW()`,
-            [user_id, answer.question_id, answer.selected_option, correct.correct_answer],
+               updated_at = NOW()`,
+            [user_id, answer.question_id, testId, String(answer.selected_option), correct.correct_option],
           );
         }
       }

@@ -12,8 +12,8 @@ interface DailyTask {
   task_type: string;
   title: string;
   description: string;
-  completed: boolean;
-  task_date: string;
+  is_completed: boolean;
+  due_date: string;
 }
 
 const DEFAULT_TASKS: { task_type: string; title: string; description: string }[] = [
@@ -46,9 +46,9 @@ export default async function dailyTaskRoutes(app: FastifyInstance): Promise<voi
 
     // Check for existing tasks for today
     const { rows: existing } = await query<DailyTask>(
-      `SELECT id, user_id, task_type, title, description, completed, task_date::text
-       FROM daily_tasks
-       WHERE user_id = $1 AND task_date = $2
+      `SELECT id, user_id, task_type, title, description, is_completed, due_date::text
+       FROM tasks
+       WHERE user_id = $1 AND due_date::date = $2
        ORDER BY created_at`,
       [user_id, today],
     );
@@ -62,9 +62,9 @@ export default async function dailyTaskRoutes(app: FastifyInstance): Promise<voi
 
     for (const task of DEFAULT_TASKS) {
       const { rows } = await query<DailyTask>(
-        `INSERT INTO daily_tasks (user_id, task_type, title, description, completed, task_date, created_at)
+        `INSERT INTO tasks (user_id, task_type, title, description, is_completed, due_date, created_at)
          VALUES ($1, $2, $3, $4, false, $5, NOW())
-         RETURNING id, user_id, task_type, title, description, completed, task_date::text`,
+         RETURNING id, user_id, task_type, title, description, is_completed, due_date::text`,
         [user_id, task.task_type, task.title, task.description, today],
       );
       insertedTasks.push(rows[0]);
