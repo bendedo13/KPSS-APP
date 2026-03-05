@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import bcrypt from 'bcrypt';
 import { db } from '../server';
 
 const loginSchema = z.object({
@@ -17,20 +18,22 @@ export async function authRoutes(app: FastifyInstance) {
 
     const { email, password } = body.data;
 
-    // NOTE: In production use bcrypt for password comparison
     const result = await db.query(
       'SELECT id, email, role, password_hash FROM users WHERE email = $1',
       [email],
     );
 
     if (result.rows.length === 0) {
+      // Use constant-time comparison even on not-found to prevent user enumeration
+      await bcrypt.compare(password, '$2b$12$invalidhashfortimingprotection000000000000000000000000');
       return reply.status(401).send({ error: 'Invalid credentials' });
     }
 
     const user = result.rows[0];
-    // TODO: Replace with bcrypt.compare(password, user.password_hash) before deployment.
-    // Stub: always rejects — real auth requires bcrypt verification.
-    void password; // prevent unused-variable lint error until bcrypt is wired up
+    const passwordValid = await bcrypt.compare(password, user.password_hash);
+    if (!passwordValid) {
+      return reply.status(401).send({ error: 'Invalid credentials' });
+    }
 
     const token = app.jwt.sign(
       { sub: user.id, email: user.email, role: user.role },

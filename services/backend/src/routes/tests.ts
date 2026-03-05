@@ -80,7 +80,7 @@ export async function testsRoutes(app: FastifyInstance) {
     const testId = testResult.rows[0].id;
 
     // Strip correct answers from response
-    const questions = questionsResult.rows.map(({ correct_option: _co, ...q }) => q);
+    const questions = questionsResult.rows.map(({ correct_option: _correctOption, ...q }) => q);
 
     return reply.status(201).send({ test_id: testId, questions });
   });

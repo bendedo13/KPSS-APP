@@ -94,6 +94,16 @@ export interface WrongBookEntry {
   topic?: string;
 }
 
+export interface Flashcard {
+  id: string;
+  front: string;
+  back: string;
+  topic_id?: string;
+  interval_days: number;
+  ease_factor: number;
+  review_count: number;
+}
+
 export const apiClient = {
   // Auth
   login: (email: string, password: string) =>
@@ -121,6 +131,16 @@ export const apiClient = {
     request<TestSubmitResult>(
       `/tests/${testId}/submit`,
       { method: 'POST', body: JSON.stringify({ answers }) },
+    ),
+
+  // Flashcards
+  getDueFlashcards: () =>
+    request<{ flashcards: Flashcard[] }>('/flashcards/due'),
+
+  reviewFlashcard: (flashcard_id: string, correct: boolean) =>
+    request<{ flashcard_id: string; next_review_in_days: number; new_ease_factor: number }>(
+      '/flashcards/review',
+      { method: 'POST', body: JSON.stringify({ flashcard_id, correct }) },
     ),
 
   // Wrong book

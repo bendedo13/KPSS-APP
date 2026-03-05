@@ -9,6 +9,8 @@ import { testsRoutes } from './routes/tests';
 import { authRoutes } from './routes/auth';
 import { dailyTasksRoutes } from './routes/dailyTasks';
 import { adminRoutes } from './routes/admin';
+import { flashcardsRoutes } from './routes/flashcards';
+import { wrongBookRoutes } from './routes/wrongBook';
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -35,6 +37,11 @@ const app = Fastify({
 });
 
 async function bootstrap() {
+  // Fail fast in production if JWT_SECRET is not configured
+  if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET environment variable must be set in production');
+  }
+
   // Plugins
   await app.register(fastifyHelmet);
   await app.register(fastifyCors, {
@@ -84,6 +91,8 @@ async function bootstrap() {
   await app.register(testsRoutes, { prefix: '/tests' });
   await app.register(dailyTasksRoutes, { prefix: '/daily-tasks' });
   await app.register(adminRoutes, { prefix: '/admin' });
+  await app.register(flashcardsRoutes, { prefix: '/flashcards' });
+  await app.register(wrongBookRoutes, { prefix: '/wrong-book' });
 
   // Verify DB connectivity (query instead of connect() to avoid leaking a client)
   await db.query('SELECT 1');
