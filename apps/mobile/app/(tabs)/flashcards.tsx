@@ -8,12 +8,14 @@ interface Flashcard {
   difficulty?: number;
 }
 
-// SRS logic: next review interval based on difficulty rating (SM-2 simplified)
+// SRS logic: next review interval based on quality rating (SM-2 simplified)
+// Quality scale (0-5): 0-2 = wrong/very hard, 3 = hard but correct, 4 = correct, 5 = easy
+// SM-2 reference: https://www.supermemo.com/en/blog/application-of-a-computer-to-improve-the-results-obtained-in-working-with-the-supermemo-method
 function srsNextInterval(currentInterval: number, quality: number): number {
   if (quality < 3) return 1; // Wrong — review again tomorrow
   if (currentInterval === 0) return 1;
   if (currentInterval === 1) return 6;
-  return Math.round(currentInterval * 2.5);
+  return Math.round(currentInterval * 2.5); // Simplified: full SM-2 adjusts ease factor per card
 }
 
 const SAMPLE_CARDS: Flashcard[] = [

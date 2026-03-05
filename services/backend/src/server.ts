@@ -17,7 +17,10 @@ export const redis = new (require('ioredis'))(process.env.REDIS_URL);
 
 const app = Fastify({ logger: true });
 
-app.register(cors, { origin: false });
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : false;
+app.register(cors, { origin: allowedOrigins });
 app.register(jwt, { secret: process.env.JWT_SECRET! });
 
 // Global rate limiting — protects all routes including auth and DB-heavy endpoints

@@ -23,7 +23,7 @@ mkdir -p "$DEPLOY_DIR"
 
 # Generate random 6-char alphanumeric suffix
 random_suffix() {
-  cat /dev/urandom | tr -dc 'a-z0-9' | head -c 6
+  tr -dc 'a-z0-9' < /dev/urandom | head -c 6
 }
 
 # Check if port is in use (docker ports or host TCP)
@@ -165,7 +165,7 @@ EOF
     if [ ! -f "$ENV_FILE" ]; then
       if [ -f "$ENV_EXAMPLE" ]; then
         cp "$ENV_EXAMPLE" "$ENV_FILE"
-        sed -i "s/COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=$PROJECT_NAME/" "$ENV_FILE"
+        sed "s/COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=$PROJECT_NAME/" "$ENV_FILE" > "$ENV_FILE.tmp" && mv "$ENV_FILE.tmp" "$ENV_FILE"
         echo "Created .env from .env.example — PLEASE FILL IN SECRETS before running again"
         exit 1
       fi
