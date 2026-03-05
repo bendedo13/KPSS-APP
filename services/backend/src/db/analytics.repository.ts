@@ -1,283 +1,219 @@
 /**
  * Analytics Repository
- * Generates advanced analytics: heatmaps, time analysis, progress tracking
+ * Topic heatmaps, difficulty breakdown, and time management analytics
  */
 
-import { BaseRepository } from './repository';
-import { db } from './index';
+import { getDb } from './index';
 
-export interface TopicHeatmap {
+export interface TopicAnalytic {
   topic: string;
-  total_attempted: number;
-  total_correct: number;
   accuracy_percent: number;
-  error_count: number;
-  last_reviewed: string | null;
+  total_questions: number;
+  correct_count: number;
+  average_time_seconds: number;
 }
 
-export interface DifficultyAnalysis {
+export interface DifficultyBreakdown {
   difficulty: string;
-  total_attempted: number;
-  total_correct: number;
+  correct_count: number;
+  total_questions: number;
   accuracy_percent: number;
-  avg_time_seconds: number;
 }
 
-export interface TimeManagementAnalysis {
-  total_tests: number;
-  avg_time_per_question: number;
-  avg_actual_time: number;
-  time_efficiency_percent: number;
-  questions_under_time: number;
-  questions_over_time: number;
+export interface TimeManagementAnalytic {
+  total_questions: number;
+  under_time: number;
+  over_time: number;
+  average_time_seconds: number;
 }
 
-export interface ProgressTrend {
-  date: string;
-  accuracy_percent: number;
-  questions_attempted: number;
-  topics_reviewed: number;
-}
-
-export interface DetailedAnalytics {
-  heatmap: TopicHeatmap[];
-  difficulty_breakdown: DifficultyAnalysis[];
-  time_management: TimeManagementAnalysis;
-  progress_trends: ProgressTrend[];
-  weak_topics: TopicHeatmap[];
-}
-
-export class AnalyticsRepository extends BaseRepository {
-  /**
-   * Get topic heatmap - which topics have errors
-   */
-  async getTopicHeatmap(userId: string): Promise<TopicHeatmap[]> {
-    const result = await db.query<TopicHeatmap>(
-      `SELECT
+export const AnalyticsRepository = {
+  async getTopicHeatmap(userId: string): Promise<TopicAnalytic[]> {
+    const db = getDb();
+    const result = await db.query<TopicAnalytic>(
+      `SELECT 
         q.topic,
-        COUNT(ta.id) as total_attempted,
-        SUM(CASE WHEN ta.is_correct THEN 1 ELSE 0 END) as total_correct,
-        ROUND(SUM(CASE WHEN ta.is_correct THEN 1 ELSE 0 END)::NUMERIC / COUNT(ta.id) * 100) as accuracy_percent,
-        SUM(CASE WHEN NOT ta.is_correct THEN 1 ELSE 0 END) as error_count,
-        MAX(ta.created_at) as last_reviewed
+        ROUND(100.0 * COUNT(CASE WHEN ta.is_correct THEN 1 END) / COUNT(*), 2) as accuracy_percent,
+        COUNT(*) as total_questions,
+        COUNT(CASE WHEN ta.is_correct THEN 1 END) as correct_count,
+        ROUND(AVG(EXTRACT(EPOCH FROM (ta.time_spent))), 2) as average_time_seconds
        FROM test_answers ta
        JOIN questions q ON ta.question_id = q.id
        JOIN tests t ON ta.test_id = t.id
        WHERE t.user_id = $1
        GROUP BY q.topic
-       ORDER BY accuracy_percent ASC, error_count DESC`,
+       ORDER BY accuracy_percent ASC`,
       [userId]
     );
-
     return result.rows;
-  }
+  },
 
-  /**
-   * Get difficulty-based analysis
-   */
-  async getDifficultyBreakdown(userId: string): Promise<DifficultyAnalysis[]> {
-    const result = await db.query<DifficultyAnalysis>(
-      `SELECT
+  async getDifficultyBreakdown(userId: string): Promise<DifficultyBreakdown[]> {
+    const db = getDb();
+    const result = await db.query<DifficultyBreakdown>(
+      `SELECT 
         q.difficulty,
-        COUNT(ta.id) as total_attempted,
-        SUM(CASE WHEN ta.is_correct THEN 1 ELSE 0 END) as total_correct,
-        ROUND(SUM(CASE WHEN ta.is_correct THEN 1 ELSE 0 END)::NUMERIC / COUNT(ta.id) * 100) as accuracy_percent,
-        ROUND(AVG(ta.time_spent_seconds)) as avg_time_seconds
+        COUNT(CASE WHEN ta.is_correct THEN 1 END) as correct_count,
+        COUNT(*) as total_questions,
+        ROUND(100.0 * COUNT(CASE WHEN ta.is_correct THEN 1 END) / COUNT(*), 2) as accuracy_percent
        FROM test_answers ta
        JOIN questions q ON ta.question_id = q.id
        JOIN tests t ON ta.test_id = t.id
        WHERE t.user_id = $1
        GROUP BY q.difficulty
-       ORDER BY q.difficulty`,
+       ORDER BY 
+        CASE q.difficulty 
+          WHEN 'easy' THEN 1 
+          WHEN 'medium' THEN 2 
+          WHEN 'hard' THEN 3 
+        END`,
       [userId]
     );
-
     return result.rows;
-  }
+  },
 
-  /**
-   * Get time management analysis
-   */
-  async getTimeManagementAnalysis(userId: string): Promise<TimeManagementAnalysis> {
-    const result = await db.query<{
-      total_tests: number;
-      total_questions: number;
-      total_time: number;
-      total_estimated_time: number;
-      under_time: number;
-      over_time: number;
-    }>(
-      `SELECT
-        COUNT(DISTINCT t.id) as total_tests,
-        COUNT(ta.id) as total_questions,
-        COALESCE(SUM(ta.time_spent_seconds), 0) as total_time,
-        COALESCE(SUM(q.estimated_time_seconds), 0) as total_estimated_time,
-        COUNT(CASE WHEN ta.time_spent_seconds <= q.estimated_time_seconds THEN 1 END) as under_time,
-        COUNT(CASE WHEN ta.time_spent_seconds > q.estimated_time_seconds THEN 1 END) as over_time
-       FROM tests t
-       LEFT JOIN test_answers ta ON t.id = ta.test_id
-       LEFT JOIN questions q ON ta.question_id = q.id
-       WHERE t.user_id = $1`,
+  async getTimeManagementAnalysis(userId: string): Promise<TimeManagementAnalytic> {
+    const db = getDb();
+    const result = await db.query<TimeManagementAnalytic>(
+      `SELECT 
+        COUNT(*) as total_questions,
+        COUNT(CASE WHEN time_limit_exceeded = false THEN 1 END) as under_time,
+        COUNT(CASE WHEN time_limit_exceeded = true THEN 1 END) as over_time,
+        ROUND(AVG(EXTRACT(EPOCH FROM (time_spent))), 2) as average_time_seconds
+       FROM exam_session_answers ea
+       JOIN exam_sessions es ON ea.session_id = es.id
+       WHERE es.user_id = $1`,
       [userId]
     );
+    return result.rows[0];
+  },
 
-    const data = result.rows[0] || {
-      total_tests: 0,
-      total_questions: 0,
-      total_time: 0,
-      total_estimated_time: 0,
-      under_time: 0,
-      over_time: 0,
-    };
-
-    const avgTimePerQuestion = data.total_questions > 0 ? Math.round(data.total_time / data.total_questions) : 0;
-    const avgEstimatedTime =
-      data.total_questions > 0 ? Math.round(data.total_estimated_time / data.total_questions) : 0;
-    const timeEfficiency = avgEstimatedTime > 0 ? Math.round((avgEstimatedTime / avgTimePerQuestion) * 100) : 100;
-
-    return {
-      total_tests: data.total_tests,
-      avg_time_per_question: avgTimePerQuestion,
-      avg_actual_time: avgEstimatedTime,
-      time_efficiency_percent: timeEfficiency,
-      questions_under_time: data.under_time,
-      questions_over_time: data.over_time,
-    };
-  }
-
-  /**
-   * Get progress trends over time
-   */
-  async getProgressTrends(userId: string, days: number = 30): Promise<ProgressTrend[]> {
-    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-    const result = await db.query<ProgressTrend>(
-      `SELECT
-        DATE(t.created_at) as date,
-        ROUND(SUM(CASE WHEN ta.is_correct THEN 1 ELSE 0 END)::NUMERIC / COUNT(ta.id) * 100) as accuracy_percent,
-        COUNT(DISTINCT ta.id) as questions_attempted,
-        COUNT(DISTINCT q.topic) as topics_reviewed
+  async getProgressTrends(userId: string, limit: number = 10): Promise<any[]> {
+    const db = getDb();
+    const result = await db.query<any>(
+      `SELECT 
+        t.id,
+        t.topic,
+        ROUND(100.0 * t.correct_count / t.total_questions, 2) as accuracy,
+        t.completed_at,
+        COUNT(CASE WHEN ta.is_correct THEN 1 END) as correct,
+        COUNT(*) as total
        FROM tests t
-       LEFT JOIN test_answers ta ON t.id = ta.test_id
-       LEFT JOIN questions q ON ta.question_id = q.id
-       WHERE t.user_id = $1 AND DATE(t.created_at) >= $2
-       GROUP BY DATE(t.created_at)
-       ORDER BY date ASC`,
-      [userId, startDate]
+       JOIN test_answers ta ON t.id = ta.test_id
+       WHERE t.user_id = $1
+       GROUP BY t.id, t.topic, t.completed_at
+       ORDER BY t.completed_at DESC
+       LIMIT $2`,
+      [userId, limit]
     );
-
     return result.rows;
-  }
+  },
 
-  /**
-   * Get weak topics that need attention
-   */
-  async getWeakTopics(userId: string, limit: number = 5): Promise<TopicHeatmap[]> {
-    const result = await db.query<TopicHeatmap>(
-      `SELECT
+  async getWeakTopics(userId: string, limit: number = 5): Promise<TopicAnalytic[]> {
+    const db = getDb();
+    const result = await db.query<TopicAnalytic>(
+      `SELECT 
         q.topic,
-        COUNT(ta.id) as total_attempted,
-        SUM(CASE WHEN ta.is_correct THEN 1 ELSE 0 END) as total_correct,
-        ROUND(SUM(CASE WHEN ta.is_correct THEN 1 ELSE 0 END)::NUMERIC / COUNT(ta.id) * 100) as accuracy_percent,
-        SUM(CASE WHEN NOT ta.is_correct THEN 1 ELSE 0 END) as error_count,
-        MAX(ta.created_at) as last_reviewed
+        ROUND(100.0 * COUNT(CASE WHEN ta.is_correct THEN 1 END) / COUNT(*), 2) as accuracy_percent,
+        COUNT(*) as total_questions,
+        COUNT(CASE WHEN ta.is_correct THEN 1 END) as correct_count,
+        ROUND(AVG(EXTRACT(EPOCH FROM (ta.time_spent))), 2) as average_time_seconds
        FROM test_answers ta
        JOIN questions q ON ta.question_id = q.id
        JOIN tests t ON ta.test_id = t.id
        WHERE t.user_id = $1
        GROUP BY q.topic
-       HAVING COUNT(ta.id) >= 5
+       HAVING COUNT(*) >= 3
        ORDER BY accuracy_percent ASC
        LIMIT $2`,
       [userId, limit]
     );
-
     return result.rows;
-  }
+  },
 
-  /**
-   * Get comprehensive analytics
-   */
-  async getDetailedAnalytics(userId: string): Promise<DetailedAnalytics> {
-    const [heatmap, difficulty, timeAnalysis, trends, weakTopics] = await Promise.all([
-      this.getTopicHeatmap(userId),
-      this.getDifficultyBreakdown(userId),
-      this.getTimeManagementAnalysis(userId),
-      this.getProgressTrends(userId),
-      this.getWeakTopics(userId),
-    ]);
+  async getDetailedAnalytics(userId: string): Promise<any> {
+    const db = getDb();
+    const heatmap = await this.getTopicHeatmap(userId);
+    const difficulty = await this.getDifficultyBreakdown(userId);
+    const timeManagement = await this.getTimeManagementAnalysis(userId);
+    const trends = await this.getProgressTrends(userId);
+    const weakTopics = await this.getWeakTopics(userId);
 
     return {
-      heatmap,
-      difficulty_breakdown: difficulty,
-      time_management: timeAnalysis,
-      progress_trends: trends,
-      weak_topics: weakTopics,
+      topicHeatmap: heatmap,
+      difficultyBreakdown: difficulty,
+      timeManagement,
+      progressTrends: trends,
+      weakTopics,
     };
-  }
+  },
 
-  /**
-   * Get topic-specific detailed analysis
-   */
-  async getTopicAnalysis(userId: string, topic: string) {
-    const result = await db.query(
-      `SELECT
-        q.topic,
-        COUNT(ta.id) as total_attempted,
-        SUM(CASE WHEN ta.is_correct THEN 1 ELSE 0 END) as total_correct,
-        ROUND(SUM(CASE WHEN ta.is_correct THEN 1 ELSE 0 END)::NUMERIC / COUNT(ta.id) * 100) as accuracy_percent,
-        AVG(ta.time_spent_seconds) as avg_time_seconds,
-        COUNT(DISTINCT q.id) as unique_questions,
-        MAX(ta.created_at) as last_reviewed
+  async getTopicAnalysis(userId: string, topic: string): Promise<any> {
+    const db = getDb();
+    const result = await db.query<any>(
+      `SELECT 
+        q.id,
+        q.text,
+        q.difficulty,
+        ta.is_correct,
+        ta.time_spent
        FROM test_answers ta
        JOIN questions q ON ta.question_id = q.id
        JOIN tests t ON ta.test_id = t.id
-       WHERE t.user_id = $1 AND LOWER(q.topic) = LOWER($2)
-       GROUP BY q.topic`,
+       WHERE t.user_id = $1 AND q.topic = $2
+       ORDER BY ta.created_at DESC`,
       [userId, topic]
     );
+    
+    const accuracy = result.rows.length > 0 
+      ? (result.rows.filter((r: any) => r.is_correct).length / result.rows.length) * 100 
+      : 0;
 
-    return result.rows[0] || null;
-  }
+    return {
+      topic,
+      totalQuestions: result.rows.length,
+      accuracy: Math.round(accuracy * 100) / 100,
+      questions: result.rows,
+    };
+  },
 
-  /**
-   * Get recommendations based on performance
-   */
-  async getRecommendations(userId: string) {
+  async getRecommendations(userId: string): Promise<string[]> {
     const weakTopics = await this.getWeakTopics(userId, 3);
-    const timeAnalysis = await this.getTimeManagementAnalysis(userId);
-    const difficultyBreakdown = await this.getDifficultyBreakdown(userId);
-
+    const timeManagement = await this.getTimeManagementAnalysis(userId);
     const recommendations: string[] = [];
 
-    // Weak topics
-    weakTopics.forEach((topic) => {
-      if (topic.accuracy_percent < 50) {
-        recommendations.push(
-          `⚠️ "${topic.topic}" konusunda ${topic.accuracy_percent}% başarı oranı - daha fazla çalışmaya ihtiyacı var`
-        );
-      } else if (topic.accuracy_percent < 70) {
-        recommendations.push(
-          `📌 "${topic.topic}" konusunda iyileştirme gerekli - ${topic.accuracy_percent}% başarı oranı`
-        );
-      }
-    });
-
-    // Time management
-    if (timeAnalysis.time_efficiency_percent < 80) {
-      recommendations.push(
-        `⏱️ Zaman yönetimine dikkat et - şu anda planlanan sürenin %${timeAnalysis.time_efficiency_percent}'ini kullanıyor`
-      );
+    // Weak topic recommendations
+    if (weakTopics.length > 0) {
+      const topicNames = weakTopics.map((t: any) => t.topic).join(', ');
+      recommendations.push(`${topicNames} konularında daha fazla pratik yapmanız tavsiye ediliyor.`);
     }
 
-    // Difficulty progression
-    const hardDifficulty = difficultyBreakdown.find((d) => d.difficulty === 'hard');
-    if (hardDifficulty && hardDifficulty.accuracy_percent < 40) {
-      recommendations.push(`💪 Zor soruları çözmek için ekstra pratik yap`);
+    // Time management recommendations
+    if (timeManagement && timeManagement.over_time > timeManagement.under_time) {
+      recommendations.push('Zaman yönetiminizi geliştirmek için süreli uygulamalar yapın.');
+    }
+
+    // Performance recommendations
+    const db = getDb();
+    const allAnswers = await db.query<any>(
+      `SELECT ta.is_correct FROM test_answers ta
+       JOIN tests t ON ta.test_id = t.id
+       WHERE t.user_id = $1`,
+      [userId]
+    );
+    
+    const avgAccuracy = allAnswers.rows.length > 0
+      ? (allAnswers.rows.filter((r: any) => r.is_correct).length / allAnswers.rows.length) * 100
+      : 0;
+    
+    if (avgAccuracy >= 80) {
+      recommendations.push('🌟 Güzel ilerleme gösteriyor! Üst level sorulara geçebilirsiniz.');
+    } else if (avgAccuracy >= 60) {
+      recommendations.push('Temel konuları pekiştirmek için tekrar deneyin.');
+    } else {
+      recommendations.push('Daha fazla kaynak yardımı ve video izlemeyi düşünün.');
     }
 
     return recommendations;
-  }
-}
-
-export const analyticsRepository = new AnalyticsRepository();
+  },
+};

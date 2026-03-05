@@ -1,149 +1,104 @@
-/**
- * Notifications Routes
- * GET /notifications - Get user notifications
- * GET /notifications/unread - Get unread notifications
- * PUT /notifications/:id/read - Mark as read
- * PUT /notifications/read-all - Mark all as read
- * DELETE /notifications/:id - Delete notification
- * GET /notifications/preferences - Get notification preferences
- * PUT /notifications/preferences - Update preferences
- */
-
-import type { FastifyInstance } from 'fastify';
-import { notificationRepository } from '../db/notification.repository';
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { NotificationRepository } from '../db/notification.repository';
 import { requireAuth } from '../middleware/auth';
 
-export async function registerNotificationsRoutes(fastify: FastifyInstance) {
-  // Get user notifications
-  fastify.get('/notifications', { onRequest: requireAuth }, async (request, reply) => {
+export async function registerNotificationRoutes(fastify: FastifyInstance) {
+  // Get all notifications for user
+  fastify.get('/notifications', { onRequest: requireAuth }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const page = parseInt((request.query as any).page) || 1;
-      const limit = parseInt((request.query as any).limit) || 20;
-
-      const notifications = await notificationRepository.findByUserId(request.user.id, { page, limit });
-      return reply.send(notifications);
+      const limit = (request.query as any).limit || 20;
+      const notifications = await NotificationRepository.findByUserId(request.user.id, parseInt(limit));
+      return reply.send({ notifications });
     } catch (error) {
       fastify.log.error(error);
-      return reply.status(500).send({
-        error: 'INTERNAL_ERROR',
-        message: 'Failed to fetch notifications',
-      });
+      return reply.status(500).send({ error: 'INTERNAL_ERROR' });
     }
   });
 
   // Get unread notifications
-  fastify.get('/notifications/unread', { onRequest: requireAuth }, async (request, reply) => {
+  fastify.get('/notifications/unread', { onRequest: requireAuth }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const unread = await notificationRepository.findUnread(request.user.id);
-      const unreadCount = await notificationRepository.getUnreadCount(request.user.id);
-
-      return reply.send({
-        unread_count: unreadCount,
-        notifications: unread,
-      });
+      const unread = await NotificationRepository.findUnread(request.user.id);
+      return reply.send({ notifications: unread, count: unread.length });
     } catch (error) {
       fastify.log.error(error);
-      return reply.status(500).send({
-        error: 'INTERNAL_ERROR',
-        message: 'Failed to fetch unread notifications',
-      });
+      return reply.status(500).send({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  // Get single notification
+  fastify.get('/notifications/:id', { onRequest: requireAuth }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const notification = await NotificationRepository.findById((request.params as any).id);
+      if (!notification) {
+        return reply.status(404).send({ error: 'NOT_FOUND' });
+      }
+      return reply.send(notification);
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.status(500).send({ error: 'INTERNAL_ERROR' });
     }
   });
 
   // Mark notification as read
-  fastify.put('/notifications/:id/read', { onRequest: requireAuth }, async (request, reply) => {
+  fastify.put('/notifications/:id/read', { onRequest: requireAuth }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const notificationId = (request.params as any).id;
-      const notification = await notificationRepository.findById(notificationId);
-
-      if (!notification || notification.user_id !== request.user.id) {
-        return reply.status(404).send({
-          error: 'NOT_FOUND',
-          message: 'Notification not found',
-        });
+      const notification = await NotificationRepository.markAsRead((request.params as any).id);
+      if (!notification) {
+        return reply.status(404).send({ error: 'NOT_FOUND' });
       }
-
-      const updated = await notificationRepository.markAsRead(notificationId);
-      return reply.send(updated);
+      return reply.send(notification);
     } catch (error) {
       fastify.log.error(error);
-      return reply.status(500).send({
-        error: 'INTERNAL_ERROR',
-        message: 'Failed to update notification',
-      });
+      return reply.status(500).send({ error: 'INTERNAL_ERROR' });
     }
   });
 
-  // Mark all as read
-  fastify.put('/notifications/read-all', { onRequest: requireAuth }, async (request, reply) => {
+  // Mark all notifications as read
+  fastify.put('/notifications/read-all', { onRequest: requireAuth }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      await notificationRepository.markAllAsRead(request.user.id);
-      return reply.send({ message: 'All notifications marked as read' });
+      await NotificationRepository.markAllAsRead(request.user.id);
+      return reply.send({ success: true });
     } catch (error) {
       fastify.log.error(error);
-      return reply.status(500).send({
-        error: 'INTERNAL_ERROR',
-        message: 'Failed to update notifications',
-      });
+      return reply.status(500).send({ error: 'INTERNAL_ERROR' });
     }
   });
 
   // Delete notification
-  fastify.delete('/notifications/:id', { onRequest: requireAuth }, async (request, reply) => {
+  fastify.delete('/notifications/:id', { onRequest: requireAuth }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const notificationId = (request.params as any).id;
-      const notification = await notificationRepository.findById(notificationId);
-
-      if (!notification || notification.user_id !== request.user.id) {
-        return reply.status(404).send({
-          error: 'NOT_FOUND',
-          message: 'Notification not found',
-        });
-      }
-
-      await notificationRepository.delete(notificationId);
-      return reply.send({ message: 'Notification deleted' });
+      await NotificationRepository.delete((request.params as any).id);
+      return reply.status(204).send();
     } catch (error) {
       fastify.log.error(error);
-      return reply.status(500).send({
-        error: 'INTERNAL_ERROR',
-        message: 'Failed to delete notification',
-      });
+      return reply.status(500).send({ error: 'INTERNAL_ERROR' });
     }
   });
 
   // Get notification preferences
-  fastify.get('/notifications/preferences', { onRequest: requireAuth }, async (request, reply) => {
+  fastify.get('/notification-preferences', { onRequest: requireAuth }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const preferences = await notificationRepository.getPreferences(request.user.id);
-      return reply.send(preferences);
+      let prefs = await NotificationRepository.getPreferences(request.user.id);
+      if (!prefs) {
+        prefs = await NotificationRepository.createDefaultPreferences(request.user.id);
+      }
+      return reply.send(prefs);
     } catch (error) {
       fastify.log.error(error);
-      return reply.status(500).send({
-        error: 'INTERNAL_ERROR',
-        message: 'Failed to fetch preferences',
-      });
+      return reply.status(500).send({ error: 'INTERNAL_ERROR' });
     }
   });
 
   // Update notification preferences
-  fastify.put('/notifications/preferences', { onRequest: requireAuth }, async (request, reply) => {
+  fastify.put('/notification-preferences', { onRequest: requireAuth }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const body = request.body as Record<string, any>;
-      const updated = await notificationRepository.updatePreferences(request.user.id, body);
-      return reply.send(updated);
+      const updates = request.body as any;
+      const prefs = await NotificationRepository.updatePreferences(request.user.id, updates);
+      return reply.send(prefs);
     } catch (error) {
-      if ((error as any).message.includes('not found')) {
-        return reply.status(404).send({
-          error: 'NOT_FOUND',
-          message: 'Preferences not found',
-        });
-      }
       fastify.log.error(error);
-      return reply.status(500).send({
-        error: 'INTERNAL_ERROR',
-        message: 'Failed to update preferences',
-      });
+      return reply.status(500).send({ error: 'INTERNAL_ERROR' });
     }
   });
 }

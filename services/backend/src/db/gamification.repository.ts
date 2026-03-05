@@ -3,8 +3,7 @@
  * Streaks and achievements/badges
  */
 
-import { BaseRepository } from './repository';
-import { db } from './index';
+import { getDb } from './index';
 
 export interface StudyStreak {
   id: string;
@@ -30,8 +29,9 @@ export interface UserBadge {
   badge?: Badge;
 }
 
-export class GamificationRepository extends BaseRepository {
+export const GamificationRepository = {
   async getOrCreateStreak(userId: string): Promise<StudyStreak> {
+    const db = getDb();
     let result = await db.query<StudyStreak>(
       'SELECT * FROM study_streaks WHERE user_id = $1',
       [userId]
@@ -45,9 +45,10 @@ export class GamificationRepository extends BaseRepository {
     }
 
     return result.rows[0];
-  }
+  },
 
   async updateStreak(userId: string): Promise<StudyStreak> {
+    const db = getDb();
     const streak = await this.getOrCreateStreak(userId);
     const now = new Date();
     const lastDate = streak.last_studied_at ? new Date(streak.last_studied_at) : null;
@@ -77,17 +78,19 @@ export class GamificationRepository extends BaseRepository {
     );
 
     return result.rows[0];
-  }
+  },
 
   async getAllBadges(): Promise<Badge[]> {
+    const db = getDb();
     const result = await db.query<Badge>(
       'SELECT id, badge_type, title, description, icon FROM badges ORDER BY badge_type',
       []
     );
     return result.rows;
-  }
+  },
 
   async getUserBadges(userId: string): Promise<UserBadge[]> {
+    const db = getDb();
     const result = await db.query<UserBadge & { badge_title: string; badge_description: string; badge_icon: string }>(
       `SELECT 
         ub.id, ub.user_id, ub.badge_id, ub.earned_at,
@@ -99,7 +102,7 @@ export class GamificationRepository extends BaseRepository {
       [userId]
     );
 
-    return result.rows.map(row => ({
+    return result.rows.map((row: UserBadge & { badge_title: string; badge_description: string; badge_icon: string }) => ({
       id: row.id,
       user_id: row.user_id,
       badge_id: row.badge_id,
@@ -112,9 +115,10 @@ export class GamificationRepository extends BaseRepository {
         icon: row.badge_icon,
       }
     }));
-  }
+  },
 
   async awardBadge(userId: string, badgeType: string): Promise<UserBadge | null> {
+    const db = getDb();
     // Get badge ID from type
     const badgeResult = await db.query<{ id: string }>(
       'SELECT id FROM badges WHERE badge_type = $1',
@@ -140,7 +144,5 @@ export class GamificationRepository extends BaseRepository {
     );
 
     return result.rows[0];
-  }
-}
-
-export const gamificationRepository = new GamificationRepository();
+  },
+};

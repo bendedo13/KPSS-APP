@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { getDb } from '../db';
 
 describe('Analytics', () => {
@@ -37,7 +36,7 @@ describe('Analytics', () => {
       []
     );
 
-    const questionIds = qResult.rows.map((row) => row.id);
+    const questionIds = qResult.rows.map((row: { id: string }) => row.id);
 
     // Create test
     const testResult = await db.query<{ id: string }>(
@@ -97,7 +96,7 @@ describe('Analytics', () => {
       );
 
       expect(result.rows.length).toBeGreaterThan(0);
-      result.rows.forEach((row) => {
+      result.rows.forEach((row: any) => {
         expect(row.accuracy_percent).toBeGreaterThanOrEqual(0);
         expect(row.accuracy_percent).toBeLessThanOrEqual(100);
       });

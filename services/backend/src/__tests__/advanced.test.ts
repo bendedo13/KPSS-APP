@@ -1,24 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
-import Fastify from 'fastify';
-import { FastifyInstance } from 'fastify';
-import { registerAdvancedRoutes } from '../routes/advanced';
 import { ExamSimulationRepository } from '../db/exam-simulation.repository';
 import { SolutionExplanationRepository } from '../db/solution-explanation.repository';
 import { GamificationRepository } from '../db/gamification.repository';
 
 describe('Advanced Features (Exam Simulation, Solutions, Gamification)', () => {
-  let app: FastifyInstance;
-  const testUserId = 1;
-
-  beforeAll(async () => {
-    app = Fastify();
-    app.register(registerAdvancedRoutes);
-    await app.ready();
-  });
-
-  afterAll(async () => {
-    await app.close();
-  });
+  const testUserId = '1';
 
   describe('ExamSimulationRepository', () => {
     it('should create a new exam session with full_mock type', async () => {

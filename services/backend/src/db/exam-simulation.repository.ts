@@ -3,8 +3,7 @@
  * Manages mock exams with realistic time constraints
  */
 
-import { BaseRepository } from './repository';
-import { db } from './index';
+import { getDb } from './index';
 
 export interface ExamSession {
   id: string;
@@ -27,18 +26,28 @@ export interface ExamResult {
   recommendations: string[];
 }
 
-export class ExamSimulationRepository extends BaseRepository {
-  async createSession(userId: string, examType: 'full_mock' | 'section' | 'time_trial', totalQuestions: number): Promise<ExamSession> {
+const generateRecommendations = (accuracy: number): string[] => {
+  const recs: string[] = [];
+  if (accuracy < 50) recs.push('⚠️ Temel konuları tekrar gözden geçir');
+  if (accuracy < 70) recs.push('📚 Zayıf konularda ekstra çalış');
+  if (accuracy >= 80) recs.push('🌟 Harika başarı! Çalışmalara devam et');
+  return recs;
+};
+
+export const ExamSimulationRepository = {
+  async createSession(userId: string, examType: 'full_mock' | 'section' | 'time_trial', totalQuestions: number, durationSeconds: number): Promise<ExamSession> {
+    const db = getDb();
     const result = await db.query<ExamSession>(
-      `INSERT INTO exam_sessions (user_id, exam_type, total_questions, time_started)
-       VALUES ($1, $2, $3, NOW())
+      `INSERT INTO exam_sessions (user_id, exam_type, total_questions, duration_seconds, time_started)
+       VALUES ($1, $2, $3, $4, NOW())
        RETURNING *`,
-      [userId, examType, totalQuestions]
+      [userId, examType, totalQuestions, durationSeconds]
     );
     return result.rows[0];
-  }
+  },
 
   async endSession(sessionId: string, score: number, accuracy: number): Promise<ExamSession> {
+    const db = getDb();
     const result = await db.query<ExamSession>(
       `UPDATE exam_sessions 
        SET is_completed = TRUE, time_ended = NOW(), score = $1, accuracy_percent = $2
@@ -47,9 +56,10 @@ export class ExamSimulationRepository extends BaseRepository {
       [score, accuracy, sessionId]
     );
     return result.rows[0];
-  }
+  },
 
   async getSessionResults(sessionId: string): Promise<ExamResult> {
+    const db = getDb();
     const sessionResult = await db.query<ExamSession>(
       'SELECT * FROM exam_sessions WHERE id = $1',
       [sessionId]
@@ -73,25 +83,16 @@ export class ExamSimulationRepository extends BaseRepository {
         onTime: timing.onTime || 0,
         late: timing.late || 0,
       },
-      recommendations: this.generateRecommendations(session.accuracy_percent || 0),
+      recommendations: generateRecommendations(session.accuracy_percent || 0),
     };
-  }
-
-  private generateRecommendations(accuracy: number): string[] {
-    const recs: string[] = [];
-    if (accuracy < 50) recs.push('⚠️ Temel konuları tekrar gözden geçir');
-    if (accuracy < 70) recs.push('📚 Zayıf konularda ekstra çalış');
-    if (accuracy >= 80) recs.push('🌟 Harika başarı! Çalışmalara devam et');
-    return recs;
-  }
+  },
 
   async recordAnswer(sessionId: string, questionId: string, userAnswer: string, isCorrect: boolean, timeSpent: number, timeLimitExceeded: boolean): Promise<void> {
+    const db = getDb();
     await db.query(
       `INSERT INTO exam_session_answers (session_id, question_id, user_answer, is_correct, time_spent_seconds, time_limit_exceeded)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [sessionId, questionId, userAnswer, isCorrect, timeSpent, timeLimitExceeded]
     );
-  }
-}
-
-export const examSimulationRepository = new ExamSimulationRepository();
+  },
+};
