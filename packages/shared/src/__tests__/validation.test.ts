@@ -15,8 +15,7 @@ describe('createQuestionSchema', () => {
     subtopic: 'Capitals',
     estimatedTimeSeconds: 30,
     explanation: 'Ankara is the capital since 1923.',
-    source: 'manual',
-    status: 'approved',
+    source: 'manual',    status: 'approved',
   };
 
   it('accepts valid question input', () => {

@@ -23,6 +23,9 @@ export async function requireAdmin(
   reply: FastifyReply,
 ): Promise<void> {
   await requireAuth(request, reply);
+  if (reply.sent) {
+    return;
+  }
   const payload = request.user as { role?: string };
   if (payload?.role !== 'admin') {
     reply

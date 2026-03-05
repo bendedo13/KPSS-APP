@@ -2,6 +2,17 @@ import type { Pool, QueryResultRow } from 'pg';
 import { toPaginationOffset } from '@kpss/shared';
 import type { PaginationParams } from '@kpss/shared';
 
+const ALLOWED_TABLES = new Set([
+  'questions',
+  'tests',
+  'users',
+  'flashcards',
+  'wrong_book',
+  'ai_jobs',
+  'user_progress',
+  'test_answers',
+]);
+
 /**
  * Generic base repository that provides reusable CRUD helpers.
  *
@@ -12,7 +23,13 @@ export abstract class BaseRepository<T extends QueryResultRow> {
   constructor(
     protected readonly db: Pool,
     protected readonly tableName: string,
-  ) {}
+  ) {
+    if (!ALLOWED_TABLES.has(tableName)) {
+      throw new Error(
+        `Repository: "${tableName}" is not an allowed table name.`,
+      );
+    }
+  }
 
   async findById(id: string): Promise<T | null> {
     const result = await this.db.query<T>(

@@ -15,7 +15,7 @@ export interface Question {
   subtopic: string;
   estimatedTimeSeconds: number;
   explanation: string;
-  source: 'ai/generated' | 'manual';
+  source: 'ai_generated' | 'manual';
   status: 'pending_review' | 'auto_accepted' | 'approved' | 'rejected';
   createdAt: string;
   updatedAt: string;

@@ -12,7 +12,9 @@ import { getDb } from '../db';
 export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   const db = getDb();
 
-  fastify.post('/auth/register', async (request, reply) => {
+  fastify.post('/auth/register', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply
@@ -36,7 +38,9 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.code(201).send(successResponse({ user, accessToken: token }));
   });
 
-  fastify.post('/auth/login', async (request, reply) => {
+  fastify.post('/auth/login', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
     const parsed = loginSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply

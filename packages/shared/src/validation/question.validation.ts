@@ -17,7 +17,7 @@ export const createQuestionSchema = z.object({
   subtopic: z.string().min(1, 'Subtopic is required'),
   estimatedTimeSeconds: z.number().int().min(10).max(300),
   explanation: z.string().min(1, 'Explanation is required'),
-  source: z.enum(['ai/generated', 'manual']),
+  source: z.enum(['ai_generated', 'manual']),
   status: z.enum(['pending_review', 'auto_accepted', 'approved', 'rejected']),
 });
 

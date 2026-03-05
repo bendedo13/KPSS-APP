@@ -8,9 +8,11 @@ import {
   Alert,
 } from 'react-native';
 import { testsApi } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import type { Question } from '@kpss/shared';
 
 export default function MiniTestScreen(): React.JSX.Element {
+  const { userId } = useAuth();
   const [testId, setTestId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -21,8 +23,12 @@ export default function MiniTestScreen(): React.JSX.Element {
   const [startTime, setStartTime] = useState(Date.now());
 
   const startTest = async (): Promise<void> => {
+    if (!userId) {
+      Alert.alert('Error', 'You must be logged in to take a test.');
+      return;
+    }
     setLoading(true);
-    const res = await testsApi.create({ userId: '', questionCount: 10 });
+    const res = await testsApi.create({ userId, questionCount: 10 });
     if (res.success) {
       setTestId(res.data.testId);
       setQuestions(res.data.questions as Question[]);

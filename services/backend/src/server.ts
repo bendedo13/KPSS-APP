@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import fastifyJwt from '@fastify/jwt';
+import fastifyRateLimit from '@fastify/rate-limit';
 import { testsRoutes } from './routes/tests';
 import { authRoutes } from './routes/auth';
 import { questionsRoutes } from './routes/questions';
@@ -11,11 +12,19 @@ app.register(fastifyJwt, {
   secret: process.env['JWT_SECRET'] ?? 'change-me-in-production',
 });
 
+app.register(fastifyRateLimit, {
+  global: true,
+  max: 100,
+  timeWindow: '1 minute',
+});
+
 app.register(authRoutes);
 app.register(testsRoutes);
 app.register(questionsRoutes);
 
-app.get('/health', async (_request, reply) => {
+app.get('/health', {
+  config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+}, async (_request, reply) => {
   const db = getDb();
   try {
     await db.query('SELECT 1');

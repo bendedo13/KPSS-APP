@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS questions (
   subtopic                TEXT NOT NULL,
   estimated_time_seconds  INT NOT NULL DEFAULT 60,
   explanation             TEXT NOT NULL,
-  source                  TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('ai/generated', 'manual')),
+  source                  TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('ai_generated', 'manual')),
   status                  TEXT NOT NULL DEFAULT 'pending_review'
                             CHECK (status IN ('pending_review', 'auto_accepted', 'approved', 'rejected')),
   created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
