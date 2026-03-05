@@ -1,0 +1,153 @@
+# =============================================================================
+# KPSS Nginx Configuration Template
+# =============================================================================
+# Template variables (replaced by scripts/generate_nginx_conf.sh):
+#   __DOMAIN__           – base domain (e.g. example.com)
+#   __KPSS_API_PORT__    – host port for the API service
+#   __KPSS_ADMIN_PORT__  – host port for the Admin service
+#
+# Two upstream modes are provided. Uncomment the one you need and remove
+# (or comment out) the other.
+# =============================================================================
+
+# ── Rate limiting ────────────────────────────────────────────────────────────
+limit_req_zone $binary_remote_addr zone=kpss_api:10m rate=30r/s;
+
+# ── Upstreams ────────────────────────────────────────────────────────────────
+# The generate script (scripts/generate_nginx_conf.sh) replaces this section
+# based on --mode.  Both modes are shown below for reference.
+#
+# --- Mode: ports (default) ---
+#   upstream kpss_api_upstream   { server 127.0.0.1:__KPSS_API_PORT__;   }
+#   upstream kpss_admin_upstream { server 127.0.0.1:__KPSS_ADMIN_PORT__; }
+#
+# --- Mode: socket ---
+#   upstream kpss_api_upstream   { server unix:/run/kpss/api.sock;   }
+#   upstream kpss_admin_upstream { server unix:/run/kpss/admin.sock; }
+
+# BEGIN_UPSTREAM
+upstream kpss_api_upstream {
+    server 127.0.0.1:__KPSS_API_PORT__;
+}
+
+upstream kpss_admin_upstream {
+    server 127.0.0.1:__KPSS_ADMIN_PORT__;
+}
+# END_UPSTREAM
+
+# ── SSL placeholder ──────────────────────────────────────────────────────────
+# To enable HTTPS with Let's Encrypt / Certbot:
+#   1. sudo certbot --nginx -d api.__DOMAIN__ -d admin.__DOMAIN__ -d app.__DOMAIN__
+#   2. Certbot will automatically add ssl_certificate / ssl_certificate_key
+#      directives and a redirect from port 80 → 443.
+#   3. Reload nginx:  sudo nginx -t && sudo systemctl reload nginx
+
+# =============================================================================
+# Server block: API  (api.__DOMAIN__)
+# =============================================================================
+server {
+    listen 80;
+    server_name api.__DOMAIN__;
+
+    access_log /var/log/nginx/kpss_api_access.log;
+    error_log  /var/log/nginx/kpss_api_error.log;
+
+    # ── Security headers ─────────────────────────────────────────────────
+    add_header X-Frame-Options        "DENY"            always;
+    add_header X-Content-Type-Options "nosniff"         always;
+    add_header X-XSS-Protection       "1; mode=block"   always;  # legacy browsers only
+    add_header Referrer-Policy        "strict-origin-when-cross-origin" always;
+
+    # ── Gzip ─────────────────────────────────────────────────────────────
+    gzip on;
+    gzip_types application/json text/plain application/javascript text/css;
+
+    # ── Body size ────────────────────────────────────────────────────────
+    client_max_body_size 10m;
+
+    location / {
+        limit_req zone=kpss_api burst=60 nodelay;
+
+        proxy_pass http://kpss_api_upstream;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# =============================================================================
+# Server block: Admin  (admin.__DOMAIN__)
+# =============================================================================
+server {
+    listen 80;
+    server_name admin.__DOMAIN__;
+
+    access_log /var/log/nginx/kpss_admin_access.log;
+    error_log  /var/log/nginx/kpss_admin_error.log;
+
+    # ── Security headers ─────────────────────────────────────────────────
+    add_header X-Frame-Options        "DENY"            always;
+    add_header X-Content-Type-Options "nosniff"         always;
+    add_header X-XSS-Protection       "1; mode=block"   always;  # legacy browsers only
+    add_header Referrer-Policy        "strict-origin-when-cross-origin" always;
+
+    # ── Gzip ─────────────────────────────────────────────────────────────
+    gzip on;
+    gzip_types application/json text/plain application/javascript text/css;
+
+    client_max_body_size 10m;
+
+    location / {
+        proxy_pass http://kpss_admin_upstream;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# =============================================================================
+# Server block: App / Mobile  (app.__DOMAIN__)
+# =============================================================================
+server {
+    listen 80;
+    server_name app.__DOMAIN__;
+
+    access_log /var/log/nginx/kpss_app_access.log;
+    error_log  /var/log/nginx/kpss_app_error.log;
+
+    # ── Security headers ─────────────────────────────────────────────────
+    add_header X-Frame-Options        "DENY"            always;
+    add_header X-Content-Type-Options "nosniff"         always;
+    add_header X-XSS-Protection       "1; mode=block"   always;  # legacy browsers only
+    add_header Referrer-Policy        "strict-origin-when-cross-origin" always;
+
+    # ── Gzip ─────────────────────────────────────────────────────────────
+    gzip on;
+    gzip_types application/json text/plain application/javascript text/css text/html;
+
+    root /var/www/kpss/mobile;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # ── Expo dev-server proxy (uncomment during development) ─────────────
+    # location / {
+    #     proxy_pass http://127.0.0.1:19006;
+    #
+    #     proxy_set_header Host              $host;
+    #     proxy_set_header X-Real-IP         $remote_addr;
+    #     proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    #     proxy_set_header X-Forwarded-Proto $scheme;
+    #
+    #     # WebSocket support for Expo hot-reload
+    #     proxy_http_version 1.1;
+    #     proxy_set_header Upgrade    $http_upgrade;
+    #     proxy_set_header Connection "upgrade";
+    # }
+}
