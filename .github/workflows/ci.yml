@@ -1,0 +1,215 @@
+name: KPSS CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test-backend:
+    name: Lint & Test Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: services/backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
+
+  lint-and-test-worker:
+    name: Lint & Test Worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: services/worker/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
+
+  lint-admin:
+    name: Lint & Build Admin
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/admin/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  lint-mobile:
+    name: Lint Mobile
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  sql-lint:
+    name: SQL Migration Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate migration files exist and are not empty
+        run: |
+          echo "Checking SQL migration files..."
+          shopt -s nullglob
+          files=(migrations/*.sql)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No SQL migration files found in migrations/"
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            if [ ! -s "$f" ]; then
+              echo "::error::Empty migration file: $f"
+              exit 1
+            fi
+            echo "✓ $f is non-empty ($(wc -l < "$f") lines)"
+          done
+      - name: Basic SQL syntax check
+        run: |
+          echo "Running basic SQL checks..."
+          status=0
+          for f in migrations/*.sql; do
+            # Check for common issues: trailing commas before closing parens
+            if grep -Pn ',\s*\)' "$f"; then
+              echo "::warning file=$f::Possible trailing comma before closing parenthesis"
+              status=1
+            fi
+            # Check for missing semicolons at end of statements
+            if grep -Pn '^\s*(CREATE|ALTER|DROP|INSERT|UPDATE|DELETE)\b' "$f" | head -1 > /dev/null 2>&1; then
+              if ! grep -q ';' "$f"; then
+                echo "::warning file=$f::No semicolons found — statements may not be terminated"
+                status=1
+              fi
+            fi
+            # Check for accidental use of DROP DATABASE
+            if grep -qi 'DROP\s\+DATABASE' "$f"; then
+              echo "::error file=$f::DROP DATABASE detected in migration file"
+              status=1
+            fi
+          done
+          if [ "$status" -eq 0 ]; then
+            echo "✓ All SQL checks passed"
+          else
+            echo "::warning::Some SQL checks produced warnings (see above)"
+          fi
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs:
+      - lint-and-test-backend
+      - lint-and-test-worker
+      - lint-admin
+      - lint-mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: |
+          docker build \
+            -t kpss-backend:${{ github.sha }} \
+            -t kpss-backend:latest \
+            -f services/backend/Dockerfile \
+            services/backend
+
+      - name: Build worker image
+        run: |
+          docker build \
+            -t kpss-worker:${{ github.sha }} \
+            -t kpss-worker:latest \
+            -f services/worker/Dockerfile \
+            services/worker
+
+      - name: Build admin image
+        run: |
+          docker build \
+            -t kpss-admin:${{ github.sha }} \
+            -t kpss-admin:latest \
+            -f apps/admin/Dockerfile \
+            apps/admin
+
+      # Deploy step intentionally disabled - enable manually after review
+
+  # ============================================================================
+  # DEPLOY JOB (DISABLED)
+  # ============================================================================
+  # WARNING: Do NOT uncomment this job without a thorough review of secrets,
+  # permissions, and target environment configuration. Enabling deployment
+  # in CI requires:
+  #   1. Proper environment secrets configured in GitHub repo settings
+  #   2. IAM / service account credentials with least-privilege access
+  #   3. Approval from the team lead or DevOps owner
+  #
+  # deploy:
+  #   name: Deploy
+  #   runs-on: ubuntu-latest
+  #   needs: [docker-build]
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #   environment: production
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - name: Log in to container registry
+  #       uses: docker/login-action@v3
+  #       with:
+  #         registry: ${{ secrets.REGISTRY_URL }}
+  #         username: ${{ secrets.REGISTRY_USERNAME }}
+  #         password: ${{ secrets.REGISTRY_PASSWORD }}
+  #
+  #     - name: Push images
+  #       run: |
+  #         for image in kpss-backend kpss-worker kpss-admin; do
+  #           docker tag "${image}:latest" "${{ secrets.REGISTRY_URL }}/${image}:${{ github.sha }}"
+  #           docker tag "${image}:latest" "${{ secrets.REGISTRY_URL }}/${image}:latest"
+  #           docker push "${{ secrets.REGISTRY_URL }}/${image}:${{ github.sha }}"
+  #           docker push "${{ secrets.REGISTRY_URL }}/${image}:latest"
+  #         done
+  #
+  #     - name: Deploy to production
+  #       run: |
+  #         echo "Add your deployment commands here (e.g., kubectl apply, ssh, etc.)"
+  #
+  # To enable this job, also add workflow_dispatch to the 'on' triggers:
+  #   on:
+  #     workflow_dispatch:
+  # ============================================================================
