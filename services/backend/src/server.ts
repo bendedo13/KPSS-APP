@@ -12,6 +12,9 @@ import { registerPlansRoutes } from './routes/learning-plans';
 import { registerAnalyticsRoutes } from './routes/analytics';
 import { registerNotificationsRoutes } from './routes/notifications';
 import { registerAdvancedRoutes } from './routes/advanced';
+import { registerNewsRoutes } from './routes/news';
+import { registerVoiceQuestionsRoutes } from './routes/voice-questions';
+import { registerSocialRoutes } from './routes/social';
 import { getDb, closeDb } from './db';
 import { errorResponse, ErrorCode } from '@kpss/shared';
 
@@ -99,6 +102,9 @@ app.register(registerPlansRoutes);
 app.register(registerAnalyticsRoutes);
 app.register(registerNotificationsRoutes);
 app.register(registerAdvancedRoutes);
+app.register(registerNewsRoutes);
+app.register(registerVoiceQuestionsRoutes);
+app.register(registerSocialRoutes);
 
 app.get('/health', {
   config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
