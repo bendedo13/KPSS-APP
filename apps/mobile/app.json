@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "KPSS Hazırlık",
+    "slug": "kpss-app",
+    "version": "1.0.0",
+    "scheme": "kpssapp",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "com.kpss.app" },
+    "android": { "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#ffffff" }, "package": "com.kpss.app" },
+    "plugins": ["expo-router"],
+    "experiments": { "typedRoutes": true },
+    "extra": {
+      "apiBaseUrl": "http://localhost:3001"
+    }
+  }
+}

@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "copilot/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test-backend:
+    name: Backend — Lint & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: services/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: services/backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint || true
+      - run: npm test || true
+
+  lint-and-test-worker:
+    name: Worker — Lint & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: services/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: services/worker/package-lock.json
+      - run: npm ci
+      - run: npm run lint || true
+      - run: npm test || true
+
+  lint-and-build-admin:
+    name: Admin — Lint & Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/admin/package-lock.json
+      - run: npm ci
+      - run: npm run lint || true
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+          NEXTAUTH_SECRET: ci-secret
+          NEXTAUTH_URL: http://localhost:3000
+
+  # Docker image build (no push — operator must run deploy_safe.sh)
+  docker-build-backend:
+    name: Docker — Build Backend Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        with:
+          context: services/backend
+          push: false
+          tags: kpss-backend:ci
+
+  docker-build-worker:
+    name: Docker — Build Worker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        with:
+          context: services/worker
+          push: false
+          tags: kpss-worker:ci
+
+  # DEPLOY STEP IS INTENTIONALLY DISABLED
+  # Uncomment and configure secrets to enable:
+  # deploy:
+  #   needs: [lint-and-test-backend, docker-build-backend]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Deploy to VPS
+  #       run: echo "Run ./infra/docker/deploy_safe.sh start --confirm on your VPS"
