@@ -52,17 +52,18 @@ if [[ -z "$EMAIL" || -z "$PASSWORD" ]]; then
   usage
 fi
 
-# Generate bcrypt hash using Python 3 (with fallback to htpasswd)
+# Generate bcrypt hash using Python 3 — password passed via env to avoid injection
 generate_hash() {
   if command -v python3 &>/dev/null; then
-    python3 -c "
-import hashlib, base64, os
+    KPSS_BOOTSTRAP_PW="$PASSWORD" python3 -c "
+import os, sys
+pw = os.environ['KPSS_BOOTSTRAP_PW']
 try:
     import bcrypt
-    print(bcrypt.hashpw('''${PASSWORD}'''.encode(), bcrypt.gensalt()).decode())
+    print(bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode())
 except ImportError:
     import crypt
-    print(crypt.crypt('''${PASSWORD}''', crypt.mksalt(crypt.METHOD_SHA512)))
+    print(crypt.crypt(pw, crypt.mksalt(crypt.METHOD_SHA512)))
 "
   else
     echo "Error: python3 is required to generate password hash." >&2
@@ -72,8 +73,9 @@ except ImportError:
 
 HASH=$(generate_hash)
 
+# Use psql variable binding to avoid SQL injection
 SQL="INSERT INTO users (email, password_hash, role, created_at, updated_at)
-VALUES ('${EMAIL}', '${HASH}', 'admin', NOW(), NOW())
+VALUES (:'email', :'hash', 'admin', NOW(), NOW())
 ON CONFLICT (email)
 DO UPDATE SET password_hash = EXCLUDED.password_hash,
              role = 'admin',
@@ -82,9 +84,10 @@ DO UPDATE SET password_hash = EXCLUDED.password_hash,
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "-- Dry run: SQL that would be executed --"
   echo "$SQL"
+  echo "-- With variables: email=${EMAIL}, hash=<redacted> --"
   exit 0
 fi
 
 echo "Creating admin user: ${EMAIL} ..."
-psql "$DB_URL" -c "$SQL"
+psql "$DB_URL" -v email="$EMAIL" -v hash="$HASH" -c "$SQL"
 echo "Done. Admin user '${EMAIL}' created/updated."
