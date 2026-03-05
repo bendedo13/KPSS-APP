@@ -8,8 +8,8 @@ const loginSchema = z.object({
 });
 
 export async function authRoutes(app: FastifyInstance) {
-  // POST /auth/login
-  app.post('/login', async (req, reply) => {
+  // POST /auth/login — strict rate limit to mitigate brute-force attacks
+  app.post('/login', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (req, reply) => {
     const body = loginSchema.safeParse(req.body);
     if (!body.success) {
       return reply.status(400).send({ error: 'Invalid input', details: body.error.issues });

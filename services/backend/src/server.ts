@@ -50,7 +50,7 @@ async function bootstrap() {
   });
 
   // Health check
-  app.get('/health', async (_req, reply) => {
+  app.get('/health', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (_req, reply) => {
     const status: Record<string, string> = { api: 'ok' };
     try {
       await db.query('SELECT 1');
@@ -71,7 +71,7 @@ async function bootstrap() {
   });
 
   // Metrics endpoint (Prometheus-friendly stub)
-  app.get('/metrics', async (_req, reply) => {
+  app.get('/metrics', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (_req, reply) => {
     return reply.type('text/plain').send(
       '# HELP kpss_api_requests_total Total API requests\n' +
       '# TYPE kpss_api_requests_total counter\n' +

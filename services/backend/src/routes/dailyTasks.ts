@@ -11,7 +11,7 @@ export async function dailyTasksRoutes(app: FastifyInstance) {
   });
 
   // GET /daily-tasks
-  app.get('/', async (req, reply) => {
+  app.get('/', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
     const user = req.user as { sub: string };
     const today = new Date().toISOString().split('T')[0];
 
@@ -31,7 +31,7 @@ export async function dailyTasksRoutes(app: FastifyInstance) {
   });
 
   // POST /daily-tasks/:id/complete
-  app.post('/:id/complete', async (req, reply) => {
+  app.post('/:id/complete', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
     const { id: taskId } = req.params as { id: string };
     const user = req.user as { sub: string };
     const today = new Date().toISOString().split('T')[0];

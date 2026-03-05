@@ -28,7 +28,7 @@ export async function testsRoutes(app: FastifyInstance) {
   });
 
   // POST /tests/create
-  app.post('/create', async (req, reply) => {
+  app.post('/create', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req, reply) => {
     const body = createTestSchema.safeParse(req.body);
     if (!body.success) {
       return reply.status(400).send({ error: 'Invalid input', details: body.error.issues });
@@ -86,7 +86,7 @@ export async function testsRoutes(app: FastifyInstance) {
   });
 
   // POST /tests/:id/submit
-  app.post('/:id/submit', async (req, reply) => {
+  app.post('/:id/submit', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req, reply) => {
     const { id: testId } = req.params as { id: string };
     const body = submitTestSchema.safeParse(req.body);
     if (!body.success) {

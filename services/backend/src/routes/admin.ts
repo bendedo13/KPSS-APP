@@ -22,7 +22,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // GET /admin/ai-jobs — List provisional questions pending review
-  app.get('/ai-jobs', async (_req, reply) => {
+  app.get('/ai-jobs', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (_req, reply) => {
     const result = await db.query(
       `SELECT aj.id, aj.status, aj.topic, aj.created_at,
               q.id AS question_id, q.text, q.options, q.difficulty, q.subtopic
@@ -36,7 +36,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // POST /admin/ai-jobs/:id/review — Accept or reject a provisional question
-  app.post('/ai-jobs/:id/review', async (req, reply) => {
+  app.post('/ai-jobs/:id/review', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
     const { id: jobId } = req.params as { id: string };
     const body = reviewSchema.safeParse(req.body);
     if (!body.success) {
