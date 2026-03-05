@@ -10,6 +10,7 @@ import { wrongBookRoutes } from './routes/wrong-book';
 import { registerGoalsRoutes } from './routes/learning-goals';
 import { registerPlansRoutes } from './routes/learning-plans';
 import { registerAnalyticsRoutes } from './routes/analytics';
+import { registerNotificationsRoutes } from './routes/notifications';
 import { getDb, closeDb } from './db';
 import { errorResponse, ErrorCode } from '@kpss/shared';
 
@@ -95,6 +96,7 @@ app.register(wrongBookRoutes);
 app.register(registerGoalsRoutes);
 app.register(registerPlansRoutes);
 app.register(registerAnalyticsRoutes);
+app.register(registerNotificationsRoutes);
 
 app.get('/health', {
   config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
