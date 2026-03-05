@@ -1,0 +1,51 @@
+# KPSS Platform Nginx Config Template
+# Supports two modes:
+#   1. Real ports mode (upstream to host:port) — default
+#   2. Unix-socket mode — uncomment socket sections and comment port sections
+#
+# Replace placeholders: __API_HOST__, __API_PORT__, __ADMIN_HOST__, __ADMIN_PORT__
+
+upstream kpss_api {
+    # Mode 1: Real ports
+    server __API_HOST__:__API_PORT__;
+
+    # Mode 2: Unix socket (comment out Mode 1 and uncomment below)
+    # server unix:/run/kpss/backend.sock;
+}
+
+upstream kpss_admin {
+    # Mode 1: Real ports
+    server __ADMIN_HOST__:__ADMIN_PORT__;
+
+    # Mode 2: Unix socket
+    # server unix:/run/kpss/admin.sock;
+}
+
+# API
+server {
+    listen 80;
+    server_name __API_DOMAIN__;
+
+    location / {
+        proxy_pass http://kpss_api;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+}
+
+# Admin Panel
+server {
+    listen 80;
+    server_name __ADMIN_DOMAIN__;
+
+    location / {
+        proxy_pass http://kpss_admin;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

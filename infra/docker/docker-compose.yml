@@ -1,0 +1,101 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: ${COMPOSE_PROJECT_NAME}_postgres
+    restart: "no"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kpss}
+      POSTGRES_USER: ${POSTGRES_USER:-kpss}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ${COMPOSE_PROJECT_NAME}_pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    mem_limit: 512m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kpss}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME}_redis
+    restart: "no"
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    mem_limit: 256m
+    cpus: 0.25
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../../services/backend
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME}_backend
+    restart: "no"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${BACKEND_PORT:-3001}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kpss}:${POSTGRES_PASSWORD}@${COMPOSE_PROJECT_NAME}_postgres:5432/${POSTGRES_DB:-kpss}
+      REDIS_URL: redis://${COMPOSE_PROJECT_NAME}_redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_DRY_RUN: ${LLM_DRY_RUN:-true}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 512m
+    cpus: 0.5
+
+  worker:
+    build:
+      context: ../../services/worker
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME}_worker
+    restart: "no"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kpss}:${POSTGRES_PASSWORD}@${COMPOSE_PROJECT_NAME}_postgres:5432/${POSTGRES_DB:-kpss}
+      REDIS_URL: redis://${COMPOSE_PROJECT_NAME}_redis:6379
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_DRY_RUN: ${LLM_DRY_RUN:-true}
+      AUTO_PUBLISH_RATE: ${AUTO_PUBLISH_RATE:-0.05}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 512m
+    cpus: 0.5
+
+  admin:
+    build:
+      context: ../../apps/admin
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME}_admin
+    restart: "no"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    ports:
+      - "${ADMIN_PORT:-3000}:3000"
+    mem_limit: 512m
+    cpus: 0.5
+
+volumes:
+  kpss_pgdata:
+    name: ${COMPOSE_PROJECT_NAME}_pgdata
