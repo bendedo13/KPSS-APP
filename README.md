@@ -240,7 +240,11 @@ LLM API (external)
 
 GitHub Actions runs lint, build, and test on every push. Docker image builds are checked in CI but **push/deploy is commented out** — enable manually after configuring registry secrets.
 
-See `.github/workflows/ci.yml`.
+To enable image push, add these repository secrets (`Settings → Secrets → Actions`):
+- `DOCKER_USERNAME` — your container registry username
+- `DOCKER_PASSWORD` — your container registry password or access token
+
+Then uncomment the `Push images` step in `.github/workflows/ci.yml` (the block starting at `# - name: Push images`).
 
 ---
 
