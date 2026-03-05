@@ -85,8 +85,8 @@ async function bootstrap() {
   await app.register(dailyTasksRoutes, { prefix: '/daily-tasks' });
   await app.register(adminRoutes, { prefix: '/admin' });
 
-  // Connect DB + Redis
-  await db.connect();
+  // Verify DB connectivity (query instead of connect() to avoid leaking a client)
+  await db.query('SELECT 1');
   await redis.connect();
 
   await app.listen({ port: PORT, host: HOST });

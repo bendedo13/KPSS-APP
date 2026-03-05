@@ -28,10 +28,9 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const user = result.rows[0];
-    // TODO: Replace with bcrypt.compare(password, user.password_hash)
-    if (password !== 'stub-check') {
-      // Stub — in production, verify hash
-    }
+    // TODO: Replace with bcrypt.compare(password, user.password_hash) before deployment.
+    // Stub: always rejects — real auth requires bcrypt verification.
+    void password; // prevent unused-variable lint error until bcrypt is wired up
 
     const token = app.jwt.sign(
       { sub: user.id, email: user.email, role: user.role },

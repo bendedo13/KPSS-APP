@@ -56,17 +56,10 @@ export async function adminRoutes(app: FastifyInstance) {
       [newStatus, reviewer.sub, reviewer_notes ?? null, jobId],
     );
 
-    if (action === 'accept') {
-      await db.query(
-        `UPDATE questions SET status = $1 WHERE ai_job_id = $2`,
-        [questionStatus, jobId],
-      );
-    } else {
-      await db.query(
-        `UPDATE questions SET status = $1 WHERE ai_job_id = $2`,
-        [questionStatus, jobId],
-      );
-    }
+    await db.query(
+      `UPDATE questions SET status = $1 WHERE ai_job_id = $2`,
+      [questionStatus, jobId],
+    );
 
     return reply.send({ success: true, status: newStatus });
   });
