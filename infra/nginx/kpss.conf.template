@@ -1,0 +1,54 @@
+# KPSS Platform — Nginx reverse proxy template
+# Placeholders: {{API_HOST}}, {{API_PORT}}, {{ADMIN_HOST}}, {{ADMIN_PORT}}
+# Two modes: port mode and unix-socket mode (toggle with USE_UNIX_SOCKET=true)
+
+# ---- Port Mode ----
+upstream kpss_api {
+    server {{API_HOST}}:{{API_PORT}};
+}
+
+upstream kpss_admin {
+    server {{ADMIN_HOST}}:{{ADMIN_PORT}};
+}
+
+# ---- Unix Socket Mode (alternative) ----
+# upstream kpss_api {
+#     server unix:/run/kpss/api.sock;
+# }
+# upstream kpss_admin {
+#     server unix:/run/kpss/admin.sock;
+# }
+
+server {
+    listen 80;
+    server_name api.example.com;
+
+    location / {
+        proxy_pass http://kpss_api;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+
+    location /metrics {
+        # Restrict Prometheus scrape endpoint to internal/VPN only
+        allow 127.0.0.1;
+        deny all;
+        proxy_pass http://kpss_api/metrics;
+    }
+}
+
+server {
+    listen 80;
+    server_name admin.example.com;
+
+    location / {
+        proxy_pass http://kpss_admin;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

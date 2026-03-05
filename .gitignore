@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+.expo/
+
+# Environment files (never commit secrets)
+.env
+# .env.example is safe to commit
+
+# Deploy state
+.deploy/*.json
+.deploy/*.active
+
+# Logs
+*.log
+
+# Test coverage
+coverage/
