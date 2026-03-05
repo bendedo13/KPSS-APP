@@ -1,0 +1,108 @@
+version: "3.8"
+
+services:
+  kpss-postgres:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-kpss}_postgres
+    ports:
+      - "${KPSS_PG_PORT:-30001}:5432"
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kpss_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_SECURE_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-kpss_db}
+    volumes:
+      - kpss_pgdata:/var/lib/postgresql/data
+    networks:
+      - kpss-net
+    mem_limit: 512m
+    cpus: 0.5
+    restart: "no"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kpss_user} -d ${POSTGRES_DB:-kpss_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  kpss-redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-kpss}_redis
+    ports:
+      - "${KPSS_REDIS_PORT:-30002}:6379"
+    volumes:
+      - kpss_redisdata:/data
+    networks:
+      - kpss-net
+    mem_limit: 256m
+    cpus: 0.25
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  kpss-api:
+    build:
+      context: ../../services/backend
+    container_name: ${COMPOSE_PROJECT_NAME:-kpss}_api
+    ports:
+      - "${KPSS_API_PORT:-30003}:3000"
+    depends_on:
+      kpss-postgres:
+        condition: service_healthy
+      kpss-redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - kpss-net
+    mem_limit: 512m
+    cpus: 0.5
+    restart: "no"
+
+  kpss-worker:
+    build:
+      context: ../../services/worker
+    container_name: ${COMPOSE_PROJECT_NAME:-kpss}_worker
+    depends_on:
+      kpss-postgres:
+        condition: service_healthy
+      kpss-redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - kpss-net
+    mem_limit: 512m
+    cpus: 0.5
+    restart: "no"
+
+  kpss-admin:
+    build:
+      context: ../../apps/admin
+    container_name: ${COMPOSE_PROJECT_NAME:-kpss}_admin
+    ports:
+      - "${KPSS_ADMIN_PORT:-30004}:3001"
+    depends_on:
+      - kpss-api
+    env_file:
+      - .env
+    networks:
+      - kpss-net
+    mem_limit: 256m
+    cpus: 0.25
+    restart: "no"
+
+volumes:
+  kpss_pgdata:
+    driver: local
+  kpss_redisdata:
+    driver: local
+
+networks:
+  kpss-net:
+    driver: bridge
