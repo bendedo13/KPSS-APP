@@ -15,6 +15,8 @@ import { registerAdvancedRoutes } from './routes/advanced';
 import { registerNewsRoutes } from './routes/news';
 import { registerVoiceQuestionsRoutes } from './routes/voice-questions';
 import { registerSocialRoutes } from './routes/social';
+import { registerAdminAuthRoutes } from './routes/admin-auth';
+import { registerAdminDashboardRoutes } from './routes/admin-dashboard';
 import { getDb, closeDb } from './db';
 import { errorResponse, ErrorCode } from '@kpss/shared';
 
@@ -105,6 +107,8 @@ app.register(registerAdvancedRoutes);
 app.register(registerNewsRoutes);
 app.register(registerVoiceQuestionsRoutes);
 app.register(registerSocialRoutes);
+app.register(registerAdminAuthRoutes);
+app.register(registerAdminDashboardRoutes);
 
 app.get('/health', {
   config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
