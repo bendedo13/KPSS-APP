@@ -11,6 +11,7 @@ import { registerGoalsRoutes } from './routes/learning-goals';
 import { registerPlansRoutes } from './routes/learning-plans';
 import { registerAnalyticsRoutes } from './routes/analytics';
 import { registerNotificationsRoutes } from './routes/notifications';
+import { registerAdvancedRoutes } from './routes/advanced';
 import { getDb, closeDb } from './db';
 import { errorResponse, ErrorCode } from '@kpss/shared';
 
@@ -97,6 +98,7 @@ app.register(registerGoalsRoutes);
 app.register(registerPlansRoutes);
 app.register(registerAnalyticsRoutes);
 app.register(registerNotificationsRoutes);
+app.register(registerAdvancedRoutes);
 
 app.get('/health', {
   config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
