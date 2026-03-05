@@ -3,3 +3,4 @@ export * from './test.validation';
 export * from './user.validation';
 export * from './flashcard.validation';
 export * from './wrongbook.validation';
+export * from './learning-goal.validation';

@@ -7,6 +7,9 @@ import { authRoutes } from './routes/auth';
 import { questionsRoutes } from './routes/questions';
 import { flashcardsRoutes } from './routes/flashcards';
 import { wrongBookRoutes } from './routes/wrong-book';
+import { registerGoalsRoutes } from './routes/learning-goals';
+import { registerPlansRoutes } from './routes/learning-plans';
+import { registerAnalyticsRoutes } from './routes/analytics';
 import { getDb, closeDb } from './db';
 import { errorResponse, ErrorCode } from '@kpss/shared';
 
@@ -89,6 +92,9 @@ app.register(testsRoutes);
 app.register(questionsRoutes);
 app.register(flashcardsRoutes);
 app.register(wrongBookRoutes);
+app.register(registerGoalsRoutes);
+app.register(registerPlansRoutes);
+app.register(registerAnalyticsRoutes);
 
 app.get('/health', {
   config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
